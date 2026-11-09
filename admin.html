@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>لوحة تحكم بهار</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: wide desktop control room — stats strip, two app cards, devices and codes tables */
+:root{
+  --bg:#F7F3EC; --surface:#FFFFFF; --surface-2:#F1E7D8; --line:#E8E0D3; --track:#EFE7DA;
+  --fg:#1F1A15; --muted:#6B6157; --accent:#9C2F17; --accent-fg:#FFFFFF;
+  --ok:#2F6B3A; --ok-bg:#E2F0E3; --warn:#8A5A00; --warn-bg:#FCEFC9; --bad:#A3301A; --bad-bg:#FBE4DE;
+  --font:'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root{
+  --bg:#17120E; --surface:#211A15; --surface-2:#2E241C; --line:#3A2F26; --track:#3A2F26;
+  --fg:#F3ECE2; --muted:#B3A595; --accent:#E8825E; --accent-fg:#1A100B;
+  --ok:#86C994; --ok-bg:#1E3324; --warn:#EBC15A; --warn-bg:#3A2D10; --bad:#F2937A; --bad-bg:#3D1F18; color-scheme:dark } }
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2{margin:0;text-wrap:balance}
+.wrap{max-width:1200px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:18px}
+.between{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.muted{color:var(--muted)} .small{font-size:12px}
+.card{background:var(--surface);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:16px;align-items:start}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.tile{background:var(--surface);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:2px}
+.tile b{font-size:26px;font-variant-numeric:tabular-nums}
+.chip{font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;white-space:nowrap;background:var(--surface-2)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)} .chip.warn{background:var(--warn-bg);color:var(--warn)} .chip.bad{background:var(--bad-bg);color:var(--bad)}
+.field{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;min-width:0}
+.input{height:46px;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:0 14px;width:100%;font-size:15px;font-weight:400;min-width:0}
+textarea.input{height:auto;min-height:70px;padding:10px 14px;resize:vertical;line-height:1.6}
+.btn{height:48px;border-radius:13px;border:0;background:var(--accent);color:var(--accent-fg);font-size:15px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 18px}
+.btn.sec{background:var(--surface-2);color:var(--fg);font-weight:600}
+.btn.ghost{background:var(--surface);border:1px solid var(--line);color:var(--fg);font-weight:600}
+.btn[disabled]{opacity:.5;cursor:wait}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;background:var(--surface-2);padding:4px;border-radius:14px}
+.seg button{height:42px;border:0;border-radius:10px;background:transparent;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--accent);font-weight:700}
+.check{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);padding:12px 14px;border-radius:14px;font-size:14px}
+.check input{width:22px;height:22px;accent-color:var(--ok)}
+.pills{display:flex;gap:8px;flex-wrap:wrap}
+.pill{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:13px;cursor:pointer}
+.pill[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:transparent;font-weight:600}
+.tbl-wrap{overflow-x:auto;background:var(--surface);border-radius:18px}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:820px}
+th{text-align:right;font-size:12px;color:var(--muted);font-weight:600;padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--track);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.5px;direction:ltr;unicode-bidi:isolate}
+.mini{height:34px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap}
+.mini.bad{color:var(--bad)} .mini.ok{color:var(--ok)}
+.note{border-radius:14px;padding:12px 14px;font-size:14px;font-weight:600}
+.note.warn{background:var(--warn-bg);color:var(--warn)} .note.bad{background:var(--bad-bg);color:var(--bad)} .note.ok{background:var(--ok-bg);color:var(--ok)}
+.login{max-width:420px;margin:8vh auto 0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+</style>
+</head>
+<body>
+<div id="app" class="wrap"><p class="muted">بيحمّل…</p></div>
+<div id="toast" class="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function(){
+'use strict';
+const SB_URL='https://sswrznkyhrihqykfxaeq.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd3J6bmt5aHJpaHF5a2Z4YWVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQyMzU1MTUsImV4cCI6MjEwOTgxMTUxNX0.KjqMFx2H40hvYasX8gBn3QqNTfYLOTSbLm6kHqsmX7g';
+const REP_CODE_VERSION='1.0.0';
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>Math.round(Number(n)||0).toLocaleString('ar-EG');
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const TODAY=iso(new Date());
+const addDays=(n)=>{const d=new Date();d.setDate(d.getDate()+n);return iso(d);};
+const fdate=s=>new Date(s.length===10?s+'T00:00:00':s).toLocaleDateString('ar-EG',{day:'numeric',month:'long',year:'numeric'});
+const daysWord=n=>n===1?'يوم':n===2?'يومين':(n<=10?fmt(n)+' أيام':fmt(n)+' يوم');
+const ago=t=>{ if(!t) return '—'; const m=Math.round((Date.now()-new Date(t).getTime())/6e4); if(m<2) return 'دلوقتي'; if(m<60) return 'من '+fmt(m)+' دقيقة'; const h=Math.round(m/60); if(h<24) return 'من '+fmt(h)+' ساعة'; return 'من '+daysWord(Math.round(h/24)); };
+const cmpVer=(a,b)=>{const x=String(a||'0').split('.').map(Number),y=String(b||'0').split('.').map(Number);for(let i=0;i<3;i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0?1:-1;}return 0;};
+const nextVer=v=>{const p=String(v||'1.0.0').split('.').map(n=>Number(n)||0);while(p.length<3)p.push(0);p[2]++;return p.join('.');};
+const APPNAME={rep:'تطبيق المندوب',manager:'برنامج المدير'};
+const STATUS={active:['شغال','ok'],maintenance:['صيانة','warn'],locked:['مقفول','bad']};
+let tt; const toast=t=>{const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(tt);tt=setTimeout(()=>el.hidden=true,2800);};
+
+let st={view:'loading',email:'',ctl:{},codes:[],devices:[],devF:'all',upd:{rep:{ver:'',notes:'',force:false},manager:{ver:'',notes:'',force:false}},msg:{},nc:{app:'rep',label:'',days:'7'},loginMsg:''};
+
+function trialInfo(d){ const c=st.ctl[d.app]||{}; const end=new Date(d.trial_started).getTime()+(c.trial_days||0)*864e5; const left=Math.ceil((end-Date.now())/864e5); return {left,end}; }
+function codeOk(code,app){ const c=st.codes.find(x=>x.code===code); return !!c&&c.app===app&&c.status==='active'&&(!c.expires||c.expires>=TODAY); }
+function devState(d){
+  const c=st.ctl[d.app]||{};
+  if(d.blocked) return ['موقوف','bad'];
+  if(d.code&&codeOk(d.code,d.app)) return ['مفعّل','ok'];
+  if(!c.require_code) return ['شغال','ok'];
+  const t=trialInfo(d); return t.left>0?['تجربة: فاضل '+daysWord(t.left),'warn']:['التجربة خلصت','bad'];
+}
+
+function loginView(){
+  return `<div class="login card"><div style="display:flex;flex-direction:column;gap:4px"><span class="small muted">بهار للتوابل والنكهات</span><h1 style="font-size:24px">لوحة التحكم</h1><span class="muted">ادخل بحساب صاحب السيستم.</span></div>
+  <form id="loginForm" style="display:flex;flex-direction:column;gap:12px">
+    <label class="field" for="email">الإيميل<input class="input" id="email" type="email" autocomplete="username" dir="ltr" required value="${esc(st.email)}"></label>
+    <label class="field" for="pass">كلمة السر<input class="input" id="pass" type="password" autocomplete="current-password" dir="ltr" required minlength="6"></label>
+    <button class="btn" type="submit">دخول</button>
+    <button class="btn ghost" type="button" data-act="signup">أول مرة؟ اعمل حساب بالإيميل ده</button>
+  </form>
+  ${st.loginMsg?`<div class="note ${st.loginMsg[1]}">${esc(st.loginMsg[0])}</div>`:''}</div>`;
+}
+
+function appCard(app){
+  const c=st.ctl[app]; if(!c) return '';
+  const u=st.upd[app], msg=st.msg[app]!=null?st.msg[app]:c.message, s=STATUS[c.status]||STATUS.active;
+  const devs=st.devices.filter(d=>d.app===app);
+  return `<section class="card">
+    <div class="between"><div style="display:flex;flex-direction:column"><h2 style="font-size:18px">${APPNAME[app]}</h2><span class="small muted">${app==='rep'?'موبايل':'كمبيوتر'} • ${fmt(devs.length)} جهاز</span></div><span class="chip ${s[1]}">${s[0]}</span></div>
+    ${app==='manager'?`<div class="note warn">البرنامج لسه بيتبني. الإعدادات هنا هتتطبق عليه أول ما يشتغل.</div>`:''}
+    <div class="field">حالة التطبيق<div class="seg">${Object.keys(STATUS).map(k=>`<button aria-pressed="${c.status===k}" data-act="status" data-app="${app}" data-k="${k}">${STATUS[k][0]}</button>`).join('')}</div><span class="small muted" style="font-weight:400">«مقفول» بيوقفه عند كل المستخدمين، و«صيانة» بيقولهم إنه راجع قريب.</span></div>
+    <div class="field">التفعيل وفترة التجربة
+      <label class="check">التشغيل محتاج كود تفعيل<input type="checkbox" data-change="req" data-app="${app}" ${c.require_code?'checked':''}></label>
+      <div class="grid2" style="align-items:center"><label class="field" style="font-weight:400" for="trial-${app}">أيام التجربة لأي جهاز جديد<input class="input" id="trial-${app}" type="number" min="0" max="365" value="${c.trial_days}"></label><button class="btn sec" style="margin-top:22px" data-act="trial" data-app="${app}">حفظ مدة التجربة</button></div>
+      <span class="small muted" style="font-weight:400">${c.require_code?'أي جهاز جديد يشتغل '+daysWord(c.trial_days)+' ببلاش، وبعدها يطلب كود.':'التفعيل مقفول دلوقتي، فالتطبيق شغال عند الكل من غير كود.'}</span>
+    </div>
+    <div class="grid2"><div class="tile" style="background:var(--surface-2)"><span class="small muted">آخر إصدار</span><b class="mono" style="font-size:20px">${esc(c.latest)}</b></div><div class="tile" style="background:var(--surface-2)"><span class="small muted">أقل إصدار مسموح</span><b class="mono" style="font-size:20px">${esc(c.min_version)}</b></div></div>
+    <div class="field">نزّل تحديث
+      <div class="grid2"><input class="input mono" data-model="upd.${app}.ver" value="${esc(u.ver)}" placeholder="${esc(nextVer(c.latest))}" aria-label="رقم الإصدار"><label class="check" style="background:none;padding:0 4px">تحديث إجباري<input type="checkbox" data-model="upd.${app}.force" ${u.force?'checked':''}></label></div>
+      <textarea class="input" data-model="upd.${app}.notes" placeholder="إيه الجديد في التحديث؟" aria-label="ملاحظات التحديث">${esc(u.notes)}</textarea>
+      <button class="btn sec" data-act="update" data-app="${app}">نزّل التحديث</button>
+      ${app==='rep'?`<span class="small muted" style="font-weight:400">إصدار الكود المرفوع دلوقتي <span class="mono">${REP_CODE_VERSION}</span>. التحديث الإجباري بيقفل أي جهاز إصداره أقل لحد ما يحدّث.</span>`:''}
+    </div>
+    <div class="field">رسالة تظهر لكل المستخدمين<textarea class="input" data-model="msg.${app}" placeholder="مثال: الأسعار الجديدة سارية من أول الشهر" aria-label="رسالة">${esc(msg)}</textarea>
+      <div class="grid2"><button class="btn sec" data-act="msg" data-app="${app}">ابعت الرسالة</button><button class="btn ghost" data-act="msgClear" data-app="${app}">امسح الرسالة</button></div></div>
+  </section>`;
+}
+
+function dashView(){
+  const wk=Date.now()-7*864e5, devs=st.devices;
+  let ds=devs.slice().sort((a,b)=>new Date(b.last_seen)-new Date(a.last_seen)); if(st.devF!=='all') ds=ds.filter(d=>d.app===st.devF);
+  const codes=st.codes.slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+  const trialing=devs.filter(d=>devState(d)[0].startsWith('تجربة')).length;
+  const nc=st.nc;
+  return `<header class="between"><div style="display:flex;flex-direction:column"><span class="small muted">بهار للتوابل والنكهات</span><h1 style="font-size:26px">لوحة التحكم</h1></div>
+    <div class="pills" style="align-items:center"><span class="small muted mono">${esc(st.email)}</span><button class="btn ghost" style="height:40px" data-act="refresh">تحديث البيانات</button><button class="btn ghost" style="height:40px" data-act="logout">خروج</button></div></header>
+  <section class="stats">
+    <div class="tile"><span class="small muted">أجهزة فتحت آخر ٧ أيام</span><b>${fmt(devs.filter(d=>new Date(d.last_seen).getTime()>wk).length)}</b></div>
+    <div class="tile"><span class="small muted">في فترة تجربة</span><b style="color:var(--warn)">${fmt(trialing)}</b></div>
+    <div class="tile"><span class="small muted">أجهزة موقوفة</span><b style="color:var(--bad)">${fmt(devs.filter(d=>d.blocked).length)}</b></div>
+    <div class="tile"><span class="small muted">أكواد شغالة</span><b>${fmt(st.codes.filter(c=>codeOk(c.code,c.app)).length)}</b></div>
+  </section>
+  <div class="cards">${appCard('rep')}${appCard('manager')}</div>
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="between"><h2 style="font-size:19px">الأجهزة</h2><div class="pills">${[['all','الكل'],['rep','المندوب'],['manager','المدير']].map(([k,t])=>`<button class="pill" aria-pressed="${st.devF===k}" data-act="devF" data-k="${k}">${t}</button>`).join('')}</div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>المستخدم</th><th>التطبيق</th><th>الموبايل</th><th>الجهاز</th><th>الإصدار</th><th>آخر ظهور</th><th>الكود</th><th>الحالة</th><th></th></tr></thead><tbody>
+    ${ds.length?ds.map(d=>{const c=st.ctl[d.app]||{}; const old=cmpVer(d.version,c.min_version)<0; const s=devState(d); return `<tr><td style="font-weight:600">${esc(d.name||'لسه مكتبش اسمه')}</td><td>${APPNAME[d.app]}</td><td class="mono">${esc(d.phone||'—')}</td><td>${esc(d.ua||'—')}</td><td><span class="mono" style="color:${old?'var(--bad)':'inherit'}">${esc(d.version||'—')}</span></td><td class="muted">${ago(d.last_seen)}</td><td class="mono small">${esc(d.code||'—')}</td><td><span class="chip ${s[1]}">${s[0]}</span></td><td><div style="display:flex;gap:6px"><button class="mini ${d.blocked?'ok':'bad'}" data-act="block" data-id="${d.id}">${d.blocked?'شغّله':'وقّفه'}</button><button class="mini" data-act="retrial" data-id="${d.id}">جدّد التجربة</button></div></td></tr>`;}).join('')
+    :`<tr><td colspan="9" class="muted" style="text-align:center;padding:28px">لسه مفيش أجهزة. أول ما حد يفتح التطبيق هيظهر هنا.</td></tr>`}
+    </tbody></table></div>
+  </section>
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <h2 style="font-size:19px">أكواد التفعيل</h2>
+    <div class="card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end">
+      <label class="field" for="ncApp">التطبيق<select id="ncApp" class="input" data-model="nc.app"><option value="rep" ${nc.app==='rep'?'selected':''}>تطبيق المندوب</option><option value="manager" ${nc.app==='manager'?'selected':''}>برنامج المدير</option></select></label>
+      <label class="field" for="ncLabel">الكود ده لمين؟<input id="ncLabel" class="input" data-model="nc.label" value="${esc(nc.label)}" placeholder="مثال: شركة بهار — أحمد"></label>
+      <label class="field" for="ncDays">الصلاحية<select id="ncDays" class="input" data-model="nc.days">${[['7','أسبوع تجربة'],['30','شهر'],['90','٣ شهور'],['365','سنة'],['0','مفتوح']].map(([k,t])=>`<option value="${k}" ${nc.days===k?'selected':''}>${t}</option>`).join('')}</select></label>
+      <button class="btn" data-act="gen">اطلع كود جديد</button>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>الكود</th><th>لمين</th><th>التطبيق</th><th>ينتهي</th><th>أجهزة مفعّلة</th><th>الحالة</th><th></th></tr></thead><tbody>
+    ${codes.length?codes.map(c=>{const exp=c.expires&&c.expires<TODAY; const s=c.status==='revoked'?['ملغي','bad']:exp?['منتهي','warn']:['شغال','ok']; const used=st.devices.filter(d=>d.code===c.code).length; return `<tr><td class="mono" style="font-weight:700">${esc(c.code)}</td><td>${esc(c.label||'—')}</td><td>${APPNAME[c.app]}</td><td class="muted">${c.expires?fdate(c.expires):'مفتوح'}</td><td>${fmt(used)}</td><td><span class="chip ${s[1]}">${s[0]}</span></td><td><div style="display:flex;gap:6px"><button class="mini" data-act="copy" data-code="${esc(c.code)}">نسخ</button>${c.status==='revoked'?`<button class="mini ok" data-act="restore" data-code="${esc(c.code)}">رجّعه</button>`:`<button class="mini bad" data-act="revoke" data-code="${esc(c.code)}">إلغاء</button>`}</div></td></tr>`;}).join('')
+    :`<tr><td colspan="7" class="muted" style="text-align:center;padding:28px">لسه مطلعتش أكواد.</td></tr>`}
+    </tbody></table></div>
+    <span class="small muted">إلغاء الكود أو انتهاؤه بيرجّع الأجهزة اللي اتفعّلت بيه لشاشة التفعيل.</span>
+  </section>`;
+}
+
+function render(){
+  const v=st.view;
+  $('#app').innerHTML = v==='login'?loginView()
+    : v==='denied'?`<div class="login card"><h1 style="font-size:22px">الحساب ده مش مسموح له</h1><p class="muted" style="margin:0">اللوحة دي لصاحب السيستم بس (${esc(st.email)}).</p><button class="btn ghost" data-act="logout">خروج</button></div>`
+    : v==='dash'?dashView():`<p class="muted">بيحمّل…</p>`;
+}
+
+async function load(){
+  const [a,b,c]=await Promise.all([sb.from('app_control').select('*'),sb.from('activation_codes').select('*'),sb.from('devices').select('*')]);
+  if(a.error||b.error||c.error){ toast('مقدرتش أحمّل البيانات'); return; }
+  st.ctl={}; a.data.forEach(r=>st.ctl[r.app]=r); st.codes=b.data; st.devices=c.data; render();
+}
+async function boot(){
+  const {data}=await sb.auth.getSession();
+  const s=data&&data.session;
+  if(!s){ st.view='login'; render(); return; }
+  st.email=s.user.email||'';
+  const {data:ok}=await sb.rpc('is_admin');
+  if(!ok){ st.view='denied'; render(); return; }
+  st.view='dash'; await load();
+}
+async function setCtl(app,patch,msg){
+  const {error}=await sb.from('app_control').update(Object.assign({},patch,{updated_at:new Date().toISOString()})).eq('app',app);
+  if(error){ toast('مقدرتش أحفظ'); return false; }
+  Object.assign(st.ctl[app],patch); render(); if(msg) toast(msg); return true;
+}
+function setPath(p,v){ const k=p.split('.'); let o=st; for(let i=0;i<k.length-1;i++) o=o[k[i]]=o[k[i]]||{}; o[k[k.length-1]]=v; }
+
+const A={
+  signup:async()=>{ const e=$('#email').value.trim(), p=$('#pass').value; st.email=e;
+    if(!e||p.length<6){ st.loginMsg=['اكتب الإيميل وكلمة سر ٦ حروف على الأقل','bad']; render(); return; }
+    const {error}=await sb.auth.signUp({email:e,password:p,options:{emailRedirectTo:location.href}});
+    st.loginMsg=error?[error.message,'bad']:['الحساب اتعمل. لو وصلك إيميل تأكيد افتحه، وبعدين ارجع ادخل من هنا.','ok']; render(); },
+  logout:async()=>{ await sb.auth.signOut(); st.view='login'; st.loginMsg=''; render(); },
+  refresh:async()=>{ await load(); toast('البيانات اتحدّثت'); },
+  devF:d=>{ st.devF=d.k; render(); },
+  status:d=>setCtl(d.app,{status:d.k},APPNAME[d.app]+': '+STATUS[d.k][0]),
+  trial:d=>{ const n=Math.max(0,Math.min(365,parseInt($('#trial-'+d.app).value,10)||0)); setCtl(d.app,{trial_days:n},'مدة التجربة بقت '+daysWord(n)); },
+  msg:async d=>{ const m=st.msg[d.app]!=null?st.msg[d.app]:st.ctl[d.app].message; if(await setCtl(d.app,{message:String(m||'').trim()},'الرسالة اتبعتت')) st.msg[d.app]=null; },
+  msgClear:async d=>{ if(await setCtl(d.app,{message:''},'الرسالة اتمسحت')) st.msg[d.app]=null; },
+  update:async d=>{ const u=st.upd[d.app], c=st.ctl[d.app]; const v=String(u.ver||'').trim()||nextVer(c.latest);
+    if(!/^\d+\.\d+\.\d+$/.test(v)){ toast('رقم الإصدار لازم يكون زي 1.0.1'); return; }
+    if(cmpVer(v,c.latest)<0){ toast('الإصدار ده أقدم من آخر إصدار'); return; }
+    if(await setCtl(d.app,{latest:v,notes:String(u.notes||'').trim(),min_version:u.force?v:c.min_version},'التحديث '+v+' نزل'+(u.force?' (إجباري)':''))) st.upd[d.app]={ver:'',notes:'',force:false}; },
+  gen:async()=>{ const nc=st.nc, AL='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', part=()=>Array.from({length:4},()=>AL[Math.floor(Math.random()*AL.length)]).join('');
+    const code='BHR-'+part()+'-'+part(), days=Number(nc.days)||0;
+    const {error}=await sb.from('activation_codes').insert({code,app:nc.app,label:String(nc.label||'').trim(),expires:days?addDays(days):null});
+    if(error){ toast('مقدرتش أطلع الكود'); return; } st.nc.label=''; await load(); toast('الكود '+code+' جاهز'); },
+  copy:d=>{ navigator.clipboard.writeText(d.code).then(()=>toast('الكود اتنسخ'),()=>toast('انسخه يدوي: '+d.code)); },
+  revoke:async d=>{ const {error}=await sb.from('activation_codes').update({status:'revoked'}).eq('code',d.code); if(error) return toast('مقدرتش ألغي الكود'); await load(); toast('الكود اتلغى'); },
+  restore:async d=>{ const {error}=await sb.from('activation_codes').update({status:'active'}).eq('code',d.code); if(error) return toast('مقدرتش أرجّع الكود'); await load(); toast('الكود رجع يشتغل'); },
+  block:async d=>{ const dv=st.devices.find(x=>x.id===d.id); const {error}=await sb.from('devices').update({blocked:!dv.blocked}).eq('id',d.id); if(error) return toast('مقدرتش أغيّر الحالة'); await load(); toast(dv.blocked?'الجهاز رجع يشتغل':'الجهاز اتوقف'); },
+  retrial:async d=>{ const {error}=await sb.from('devices').update({trial_started:new Date().toISOString()}).eq('id',d.id); if(error) return toast('مقدرتش أجدّد التجربة'); await load(); toast('التجربة بدأت من جديد'); }
+};
+document.addEventListener('click',e=>{ const el=e.target.closest('[data-act]'); if(!el) return; const f=A[el.dataset.act]; if(f){ e.preventDefault(); f(el.dataset,el); } });
+document.addEventListener('input',e=>{ const el=e.target; if(el.dataset.model&&el.type!=='checkbox') setPath(el.dataset.model,el.value); });
+document.addEventListener('change',e=>{ const el=e.target;
+  if(el.dataset.model) setPath(el.dataset.model,el.type==='checkbox'?el.checked:el.value);
+  if(el.dataset.change==='req') setCtl(el.dataset.app,{require_code:el.checked},el.checked?'التفعيل بالكود بقى مطلوب':'التفعيل بالكود اتلغى'); });
+document.addEventListener('submit',async e=>{ if(e.target.id!=='loginForm') return; e.preventDefault();
+  const em=$('#email').value.trim(), p=$('#pass').value; st.email=em;
+  const {error}=await sb.auth.signInWithPassword({email:em,password:p});
+  if(error){ st.loginMsg=[/confirm/i.test(error.message)?'لسه الإيميل ما اتأكدش. افتح إيميل التأكيد الأول.':'الإيميل أو كلمة السر غلط','bad']; render(); return; }
+  st.loginMsg=''; boot(); });
+setInterval(()=>{ if(st.view==='dash'&&!document.hidden&&!document.activeElement.matches('input,textarea,select')) load(); },30000);
+boot();
+})();
+</script>
+</body>
+</html>

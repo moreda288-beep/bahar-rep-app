@@ -170,7 +170,6 @@ textarea.input{height:auto;min-height:72px;padding:10px 14px;resize:vertical;lin
 <div class="app" dir="rtl">
   <div id="view"></div>
 </div>
-<div id="admin" dir="rtl" hidden></div>
 <nav class="nav" id="nav" aria-label="التنقل الرئيسي" dir="rtl"><div class="nav-in" id="navIn"></div></nav>
 <div id="abar"></div>
 <div id="toast" class="toast" hidden></div>
@@ -696,145 +695,55 @@ V.setup=()=>{
 };
 V.setup.bar=()=>`<button class="btn" data-act="saveRep">${S.rep.name?'حفظ':'ابدأ'}</button>`;
 
-// ---------- cloud control (shared with the owner's control panel) ----------
+// ---------- cloud control (Supabase) ----------
 const APP_VERSION='1.0.0';
-const CTL_DEFAULT={status:'active',message:'',latest:'1.0.0',minVersion:'1.0.0',notes:'',requireCode:false};
-const cloud={db:null,user:null,uid:null,isAdmin:null,inited:false,ready:false,ctl:{},dev:null,codes:[],devices:[],adminSubs:false,codeChecked:false};
+const SB_URL='https://sswrznkyhrihqykfxaeq.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNzd3J6bmt5aHJpaHF5a2Z4YWVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQyMzU1MTUsImV4cCI6MjEwOTgxMTUxNX0.KjqMFx2H40hvYasX8gBn3QqNTfYLOTSbLm6kHqsmX7g';
+const cloud={st:null,forceAct:false,sig:''};
+let DEVICE=null; try{DEVICE=localStorage.getItem('bahar-device');}catch(e){}
+if(!DEVICE){ DEVICE=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(c^Math.random()*16>>c/4).toString(16)); try{localStorage.setItem('bahar-device',DEVICE);}catch(e){} }
+try{ const c=localStorage.getItem('bahar-ctl'); if(c) cloud.st=JSON.parse(c); }catch(e){}
 const cmpVer=(a,b)=>{const x=String(a||'0').split('.').map(Number),y=String(b||'0').split('.').map(Number);for(let i=0;i<3;i++){const d=(x[i]||0)-(y[i]||0);if(d)return d>0?1:-1;}return 0;};
-const nextVer=v=>{const p=String(v||'1.0.0').split('.').map(n=>Number(n)||0);while(p.length<3)p.push(0);p[2]++;return p.join('.');};
-const ctlOf=app=>Object.assign({},CTL_DEFAULT,cloud.ctl[app]||{});
-let actCode=null; try{actCode=localStorage.getItem('bahar-act');}catch(e){}
 function deviceLabel(){ const u=navigator.userAgent||''; const os=/Android/i.test(u)?'أندرويد':/iPhone|iPad/i.test(u)?'آيفون':/Windows/i.test(u)?'ويندوز':/Mac/i.test(u)?'ماك':'جهاز'; const br=/Edg\//.test(u)?'Edge':/Chrome\//.test(u)?'Chrome':/Safari\//.test(u)?'Safari':/Firefox\//.test(u)?'Firefox':''; return os+(br?' • '+br:''); }
-const codeOk=(d,app)=>!!d&&d.status==='active'&&(d.app||'rep')===app&&(!d.expires||d.expires>=TODAY);
 const normCode=s=>{ let t=String(s||'').replace(/[٠-٩]/g,c=>'٠١٢٣٤٥٦٧٨٩'.indexOf(c)).toUpperCase().replace(/[^A-Z0-9]/g,''); if(t.length===11&&t.startsWith('BHR')) t='BHR-'+t.slice(3,7)+'-'+t.slice(7); return t; };
+async function rpc(fn,body){ const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!r.ok) throw new Error('rpc '+r.status); return r.json(); }
 async function registerDevice(){
-  if(!cloud.db||!cloud.uid) return;
-  try{ const ref=cloud.db.doc('devices/'+cloud.uid); const s=await ref.get();
-    const body={app:'rep',name:S.rep.name||'',phone:S.rep.phone||'',version:APP_VERSION,lastSeen:Date.now(),ua:deviceLabel(),code:actCode||''};
-    if(s.exists) await ref.update(body); else await ref.set(Object.assign({blocked:false,firstSeen:Date.now()},body));
+  try{
+    const st=await rpc('client_sync',{p_device:DEVICE,p_app:'rep',p_name:S.rep.name||'',p_phone:S.rep.phone||'',p_ua:deviceLabel(),p_version:APP_VERSION});
+    cloud.st=st; try{localStorage.setItem('bahar-ctl',JSON.stringify(st));}catch(e){}
+    const sig=JSON.stringify([gate(),banner()]);
+    if(sig!==cloud.sig){ cloud.sig=sig; render(); }
   }catch(e){}
 }
-async function checkCode(){
-  if(cloud.codeChecked||!actCode||!cloud.db) return; cloud.codeChecked=true;
-  try{ const s=await cloud.db.doc('codes/'+actCode).get(); if(!codeOk(s.exists?s.data():null,'rep')){ actCode=null; try{localStorage.removeItem('bahar-act');}catch(e){} render(); } }catch(e){}
-}
-async function cloudInit(){
-  try{ if(window.claude&&window.claude.use){ cloud.db=await window.claude.use('db'); cloud.user=await window.claude.use('user'); } }catch(e){}
-  if(cloud.db){
-    try{ cloud.uid=cloud.user?await cloud.user.id():null; cloud.isAdmin=cloud.user?await cloud.user.canEdit():false; }catch(e){ cloud.isAdmin=false; }
-    cloud.db.doc('control/rep').onSnapshot(s=>{ cloud.ctl.rep=s.exists?s.data():null; cloud.ready=true; checkCode(); render(); },()=>{ cloud.ready=false; });
-    if(cloud.uid){ cloud.db.doc('devices/'+cloud.uid).onSnapshot(s=>{ cloud.dev=s.exists?s.data():null; render(); },()=>{}); registerDevice(); }
-  }
-  cloud.inited=true; render();
-}
+function cloudInit(){ cloud.sig=JSON.stringify([gate(),banner()]); registerDevice(); setInterval(()=>{ if(!document.hidden) registerDevice(); },60000); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) registerDevice(); }); }
 const gateHTML=(icn,tone,title,text,btn)=>`<div class="gate"><span class="bigic" style="background:var(--${tone}-bg);color:var(--${tone})">${ic(icn,44,1.8)}</span><h1 style="font-size:23px">${title}</h1><p class="muted" style="margin:0;line-height:1.8;white-space:pre-line">${esc(text)}</p>${btn||''}</div>`;
+function needsCode(){ const c=cloud.st; return !!c&&c.require_code&&!c.activated; }
 function gate(){
-  if(!cloud.db||!cloud.ready) return '';
-  const c=ctlOf('rep');
-  if(cloud.dev&&cloud.dev.blocked) return gateHTML('lock','bad','الجهاز ده موقوف','تواصل مع الإدارة عشان يرجع يشتغل.');
+  const c=cloud.st; if(!c) return '';
+  if(c.blocked) return gateHTML('lock','bad','الجهاز ده موقوف','تواصل مع الإدارة عشان يرجع يشتغل.');
   if(c.status==='locked') return gateHTML('lock','bad','التطبيق مقفول حالياً',c.message||'تواصل مع الإدارة.');
   if(c.status==='maintenance') return gateHTML('clock','warn','التطبيق تحت الصيانة',c.message||'هيرجع يشتغل قريب.',`<button class="btn sec" data-act="reloadApp" style="width:100%">جرّب تاني</button>`);
-  if(cmpVer(APP_VERSION,c.minVersion)<0) return gateHTML('download','warn','فيه تحديث إجباري','لازم تحدّث لإصدار '+c.minVersion+' عشان تكمل.'+(c.notes?'\n\n'+c.notes:''),`<button class="btn" data-act="reloadApp" style="width:100%">${ic('download',20)}حدّث دلوقتي</button><span class="small muted">إصدارك الحالي <span class="mono">${APP_VERSION}</span></span>`);
-  if(c.requireCode&&!actCode) return `<div class="gate"><span class="bigic" style="background:var(--surface-2);color:var(--accent)">${ic('key',44)}</span><h1 style="font-size:23px">تفعيل التطبيق</h1><p class="muted" style="margin:0">اكتب كود التفعيل اللي وصلك من الإدارة.</p>
+  if(cmpVer(APP_VERSION,c.min_version)<0) return gateHTML('download','warn','فيه تحديث إجباري','لازم تحدّث لإصدار '+c.min_version+' عشان تكمل.'+(c.notes?'\n\n'+c.notes:''),`<button class="btn" data-act="reloadApp" style="width:100%">${ic('download',20)}حدّث دلوقتي</button><span class="small muted">إصدارك الحالي <span class="mono">${APP_VERSION}</span></span>`);
+  if(needsCode()&&(c.trial_left_days<=0||cloud.forceAct)){
+    const ended=c.trial_left_days<=0;
+    return `<div class="gate"><span class="bigic" style="background:var(--surface-2);color:var(--accent)">${ic('key',44)}</span><h1 style="font-size:23px">${ended?'فترة التجربة خلصت':'تفعيل التطبيق'}</h1><p class="muted" style="margin:0">${ended?'عشان تكمل استخدام التطبيق اكتب كود التفعيل اللي وصلك من الإدارة.':'اكتب كود التفعيل اللي وصلك من الإدارة.'}</p>
     <label for="actInput" style="position:absolute;width:1px;height:1px;overflow:hidden">كود التفعيل</label><input id="actInput" class="input mono" style="text-align:center;font-size:20px;height:56px" placeholder="BHR-XXXX-XXXX" autocomplete="off">
-    <div id="actErr" style="width:100%"></div><button class="btn" data-act="activate" style="width:100%">فعّل</button></div>`;
+    <div id="actErr" style="width:100%"></div><button class="btn" data-act="activate" style="width:100%">فعّل</button>${ended?'':`<button class="btn ghost" data-act="actLater" style="width:100%">بعدين</button>`}</div>`;
+  }
   return '';
 }
 function banner(){
-  if(!cloud.ready) return '';
-  const c=ctlOf('rep'); let h='';
+  const c=cloud.st; if(!c) return ''; let h='';
   if(c.message) h+=`<div class="note warn">${ic('alert',20)}<span style="white-space:pre-line">${esc(c.message)}</span></div>`;
+  if(needsCode()&&c.trial_left_days>0) h+=`<div class="note neu" style="justify-content:space-between"><span>فترة تجربة: فاضل ${daysWord(c.trial_left_days)}</span><button class="mini" data-act="actNow">عندي كود</button></div>`;
   if(cmpVer(APP_VERSION,c.latest)<0) h+=`<div class="note neu" style="justify-content:space-between"><span>فيه إصدار جديد <span class="mono">${esc(c.latest)}</span>${c.notes?' — '+esc(c.notes):''}</span><button class="mini" data-act="reloadApp">حدّث</button></div>`;
   return h;
-}
-
-// ---------- owner control panel (#control) ----------
-function ensureAdm(){ if(!ui.adm) ui.adm={devF:'all',upd:{rep:{ver:'',notes:'',force:false},manager:{ver:'',notes:'',force:false}},msg:{rep:null,manager:null},nc:{app:'rep',label:'',days:'30'}}; }
-function adminInit(){
-  if(cloud.adminSubs||!cloud.db||!cloud.isAdmin) return; cloud.adminSubs=true;
-  cloud.db.collection('control').onSnapshot(q=>{ q.docs.forEach(d=>{ cloud.ctl[d.id]=d.data(); }); render(); },()=>{});
-  cloud.db.collection('codes').onSnapshot(q=>{ cloud.codes=q.docs.map(d=>Object.assign({id:d.id},d.data())); render(); },()=>{});
-  cloud.db.collection('devices').onSnapshot(q=>{ cloud.devices=q.docs.map(d=>Object.assign({id:d.id},d.data())); render(); },()=>{});
-}
-const ago=ts=>{ if(!ts) return '—'; const m=Math.round((Date.now()-ts)/6e4); if(m<2) return 'دلوقتي'; if(m<60) return 'من '+fmt(m)+' دقيقة'; const h=Math.round(m/60); if(h<24) return 'من '+fmt(h)+' ساعة'; return 'من '+daysWord(Math.round(h/24)); };
-const APPNAME={rep:'تطبيق المندوب',manager:'برنامج المدير'};
-function admApp(app){
-  const c=ctlOf(app), u=ui.adm.upd[app], msg=ui.adm.msg[app]!=null?ui.adm.msg[app]:c.message;
-  const devs=cloud.devices.filter(d=>(d.app||'rep')===app);
-  const st={active:['شغال','paid'],maintenance:['صيانة','soon'],locked:['مقفول','late']}[c.status]||['شغال','paid'];
-  return `<section class="card" style="gap:16px">
-  <div class="between"><div style="display:flex;align-items:center;gap:12px"><span class="sw" style="width:48px;height:48px;border-radius:14px;background:var(--surface-2);color:var(--accent)">${ic(app==='rep'?'phone':'monitor',24)}</span><div style="display:flex;flex-direction:column"><h2 style="font-size:17px">${APPNAME[app]}</h2><span class="small muted">${app==='rep'?'موبايل':'كمبيوتر'} • ${fmt(devs.length)} جهاز</span></div></div><span class="chip ${st[1]}">${st[0]}</span></div>
-  ${app==='manager'?`<div class="note warn">${ic('clock',20)}البرنامج لسه بيتبني. الإعدادات هنا هتتطبق عليه أول ما يشتغل.</div>`:''}
-  <div class="field">حالة التطبيق<div class="seg">${[['active','شغال'],['maintenance','صيانة'],['locked','مقفول']].map(([k,t])=>`<button aria-pressed="${c.status===k}" data-act="admStatus" data-app="${app}" data-k="${k}">${t}</button>`).join('')}</div><span class="small muted" style="font-weight:400">«مقفول» بيوقفه عند كل المستخدمين فوراً، و«صيانة» بيقولهم إنه راجع قريب.</span></div>
-  <div class="grid2"><div class="tile" style="background:var(--surface-2)"><span class="small muted">آخر إصدار</span><b class="mono">${esc(c.latest)}</b></div><div class="tile" style="background:var(--surface-2)"><span class="small muted">أقل إصدار مسموح</span><b class="mono">${esc(c.minVersion)}</b></div></div>
-  <div class="field">نزّل تحديث
-    <div class="grid2"><input class="input mono" data-model="adm.upd.${app}.ver" value="${esc(u.ver)}" placeholder="${esc(nextVer(c.latest))}" aria-label="رقم الإصدار الجديد"><label class="check" style="color:var(--fg)"><input type="checkbox" data-model="adm.upd.${app}.force" ${u.force?'checked':''}>تحديث إجباري</label></div>
-    <textarea class="input" data-model="adm.upd.${app}.notes" placeholder="إيه الجديد في التحديث؟" aria-label="ملاحظات التحديث">${esc(u.notes)}</textarea>
-    <button class="btn sec" data-act="admUpdate" data-app="${app}">${ic('download',18)}نزّل التحديث</button>
-    ${app==='rep'?`<span class="small muted" style="font-weight:400">إصدار الكود المنشور دلوقتي <span class="mono">${APP_VERSION}</span>. التحديث الإجباري بيقفل أي جهاز إصداره أقل لحد ما يحدّث.</span>`:''}
-  </div>
-  <div class="field">رسالة تظهر لكل المستخدمين<textarea class="input" data-model="adm.msg.${app}" placeholder="مثال: الأسعار الجديدة سارية من أول الشهر" aria-label="رسالة">${esc(msg)}</textarea>
-    <div class="grid2"><button class="btn sec" data-act="admMsg" data-app="${app}">ابعت الرسالة</button><button class="btn ghost" data-act="admMsgClear" data-app="${app}">امسح الرسالة</button></div></div>
-  <label class="check" style="background:var(--surface-2);padding:12px 14px;border-radius:14px;justify-content:space-between;color:var(--fg);font-size:14px">التشغيل محتاج كود تفعيل<input type="checkbox" data-act-change="admReq" data-app="${app}" ${c.requireCode?'checked':''}></label>
-  </section>`;
-}
-function V_admin(){
-  ensureAdm();
-  const head=`<header class="between" style="flex-wrap:wrap;gap:12px"><div style="display:flex;flex-direction:column"><span class="small muted">بهار للتوابل والنكهات</span><h1 style="font-size:26px">لوحة التحكم</h1></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="chip">لصاحب السيستم بس</span></div></header>`;
-  if(!cloud.inited) return `<div class="adm">${head}<div class="note neu">بيحمّل…</div></div>`;
-  if(!cloud.db) return `<div class="adm">${head}<div class="note warn">${ic('alert',20)}لوحة التحكم بتشتغل وأنت داخل بحساب صاحب التطبيق على claude.ai. افتح اللينك من حسابك.</div></div>`;
-  if(!cloud.isAdmin) return `<div class="adm">${head}<div class="note bad">${ic('lock',20)}اللوحة دي لصاحب السيستم بس.</div></div>`;
-  const devs=cloud.devices, wk=Date.now()-7*864e5;
-  const activeCodes=cloud.codes.filter(c=>codeOk(c,c.app||'rep')).length;
-  const st=app=>({active:'شغال',maintenance:'صيانة',locked:'مقفول'}[ctlOf(app).status]);
-  const f=ui.adm.devF; let ds=devs.slice().sort((a,b)=>(b.lastSeen||0)-(a.lastSeen||0)); if(f!=='all') ds=ds.filter(d=>(d.app||'rep')===f);
-  const codes=cloud.codes.slice().sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
-  const nc=ui.adm.nc;
-  return `<div class="adm">${head}
-  <section class="stats">
-    <div class="tile"><span class="small muted">أجهزة شغالة (آخر ٧ أيام)</span><b class="num">${fmt(devs.filter(d=>(d.lastSeen||0)>wk&&!d.blocked).length)}</b></div>
-    <div class="tile"><span class="small muted">أجهزة موقوفة</span><b class="num" style="color:var(--bad)">${fmt(devs.filter(d=>d.blocked).length)}</b></div>
-    <div class="tile"><span class="small muted">أكواد تفعيل شغالة</span><b class="num">${fmt(activeCodes)}</b></div>
-    <div class="tile"><span class="small muted">تطبيق المندوب</span><b>${st('rep')}</b></div>
-    <div class="tile"><span class="small muted">برنامج المدير</span><b>${st('manager')}</b></div>
-  </section>
-  <div class="adm-grid">${admApp('rep')}${admApp('manager')}</div>
-  <section style="display:flex;flex-direction:column;gap:12px">
-    <div class="between" style="flex-wrap:wrap;gap:10px"><h2 style="font-size:18px">الأجهزة</h2><div class="pills">${[['all','الكل'],['rep','المندوب'],['manager','المدير']].map(([k,t])=>`<button class="pill" aria-pressed="${f===k}" data-act="admDevF" data-k="${k}">${t}</button>`).join('')}</div></div>
-    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>المستخدم</th><th>التطبيق</th><th>الموبايل</th><th>الجهاز</th><th>الإصدار</th><th>آخر ظهور</th><th>الكود</th><th>الحالة</th><th></th></tr></thead><tbody>
-    ${ds.length?ds.map(d=>{const c=ctlOf(d.app||'rep'); const old=cmpVer(d.version,c.minVersion)<0; return `<tr><td style="font-weight:600">${esc(d.name||'بدون اسم')}</td><td>${APPNAME[d.app||'rep']}</td><td class="mono">${esc(d.phone||'—')}</td><td>${esc(d.ua||'—')}</td><td><span class="mono" style="color:${old?'var(--bad)':'inherit'}">${esc(d.version||'—')}</span></td><td class="muted">${ago(d.lastSeen)}</td><td class="mono small">${esc(d.code||'—')}</td><td><span class="chip ${d.blocked?'late':'paid'}">${d.blocked?'موقوف':'شغال'}</span></td><td><button class="mini ${d.blocked?'good':'danger'}" data-act="admBlock" data-id="${esc(d.id)}">${d.blocked?'شغّله':'وقّفه'}</button></td></tr>`;}).join('')
-    :`<tr><td colspan="9" class="muted" style="text-align:center;padding:28px">لسه مفيش أجهزة. أول ما مندوب يفتح التطبيق وهو داخل بحسابه هيظهر هنا.</td></tr>`}
-    </tbody></table></div>
-  </section>
-  <section style="display:flex;flex-direction:column;gap:12px">
-    <h2 style="font-size:18px">أكواد التفعيل</h2>
-    <div class="card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end">
-      <label class="field" for="ncApp">التطبيق<select id="ncApp" class="input" data-model="adm.nc.app"><option value="rep" ${nc.app==='rep'?'selected':''}>تطبيق المندوب</option><option value="manager" ${nc.app==='manager'?'selected':''}>برنامج المدير</option></select></label>
-      <label class="field" for="ncLabel">الكود ده لمين؟<input id="ncLabel" class="input" data-model="adm.nc.label" value="${esc(nc.label)}" placeholder="مثال: أحمد سمير"></label>
-      <label class="field" for="ncDays">الصلاحية<select id="ncDays" class="input" data-model="adm.nc.days">${[['30','شهر'],['90','٣ شهور'],['365','سنة'],['0','مفتوح']].map(([k,t])=>`<option value="${k}" ${nc.days===k?'selected':''}>${t}</option>`).join('')}</select></label>
-      <button class="btn" data-act="admGen">${ic('key',18)}اطلع كود جديد</button>
-    </div>
-    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>الكود</th><th>لمين</th><th>التطبيق</th><th>ينتهي</th><th>أجهزة مفعّلة</th><th>الحالة</th><th></th></tr></thead><tbody>
-    ${codes.length?codes.map(c=>{const exp=c.expires&&c.expires<TODAY; const s=c.status==='revoked'?['ملغي','late']:exp?['منتهي','soon']:['شغال','paid']; const used=cloud.devices.filter(d=>d.code===c.id).length; return `<tr><td class="mono" style="font-weight:700">${esc(c.id)}</td><td>${esc(c.label||'—')}</td><td>${APPNAME[c.app||'rep']}</td><td class="muted">${c.expires?fdateY(c.expires):'مفتوح'}</td><td class="num">${fmt(used)}</td><td><span class="chip ${s[1]}">${s[0]}</span></td><td style="display:flex;gap:6px"><button class="mini" data-act="admCopy" data-code="${esc(c.id)}">${ic('copy',14)} نسخ</button>${c.status==='revoked'?`<button class="mini good" data-act="admRestore" data-code="${esc(c.id)}">رجّعه</button>`:`<button class="mini danger" data-act="admRevoke" data-code="${esc(c.id)}">إلغاء</button>`}</td></tr>`;}).join('')
-    :`<tr><td colspan="7" class="muted" style="text-align:center;padding:28px">لسه مطلعتش أكواد.</td></tr>`}
-    </tbody></table></div>
-    <span class="small muted">لما تفعّل «التشغيل محتاج كود تفعيل» لتطبيق، أي جهاز مش مفعّل هيطلب كود قبل ما يفتح. إلغاء الكود بيقفل الأجهزة اللي اتفعّلت بيه.</span>
-  </section>
-  </div>`;
-}
-async function saveCtl(app,patch){
-  if(!cloud.db) return false;
-  try{ await cloud.db.doc('control/'+app).set(Object.assign({},ctlOf(app),patch,{updatedAt:Date.now()})); return true; }
-  catch(e){ toast('مقدرتش أحفظ. اتأكد إنك داخل بحساب صاحب التطبيق'); return false; }
 }
 
 // ---------- render ----------
 const TABS=[['home','home','الرئيسية'],['merchants','store','التجار'],['order','plusBox','طلبية'],['collect','wallet','تحصيل'],['perf','chart','أدائي']];
 const TABVIEWS={home:1,merchants:1,perf:1};
 function render(){
-  const isAdm=location.hash==='#control';
-  document.querySelector('.app').hidden=isAdm; $('#admin').hidden=!isAdm;
-  if(isAdm){ $('#nav').hidden=true; $('#abar').innerHTML=''; adminInit(); $('#admin').innerHTML=V_admin(); return; }
   const g=gate();
   if(g){ $('#view').innerHTML=g; $('#nav').hidden=true; $('#abar').innerHTML=''; return; }
   if(!S.rep.name&&ui.view!=='setup'){ ui.view='setup'; ui.stack=[]; }
@@ -940,38 +849,16 @@ const A={
     if(first) go('home',null,{tab:true}); else { back(); toast('بياناتك اتحفظت'); }
   },
   reloadApp:()=>{ location.reload(); },
-  openAdmin:()=>{ location.hash='control'; },
   activate:async()=>{
     const code=normCode(($('#actInput')||{}).value); const err=$('#actErr');
     if(!code){ err.innerHTML=`<div class="note bad">اكتب الكود</div>`; return; }
-    try{ const s=await cloud.db.doc('codes/'+code).get();
-      if(!codeOk(s.exists?s.data():null,'rep')){ err.innerHTML=`<div class="note bad">${ic('alert',20)}الكود ده مش صحيح أو انتهى. اتأكد منه أو اطلب كود جديد.</div>`; return; }
-      actCode=code; try{localStorage.setItem('bahar-act',code);}catch(e){}
-      registerDevice(); render(); toast('التطبيق اتفعّل');
-    }catch(e){ err.innerHTML=`<div class="note bad">مقدرتش أتأكد من الكود دلوقتي، جرّب تاني</div>`; }
+    try{ const r=await rpc('activate_code',{p_device:DEVICE,p_app:'rep',p_code:code});
+      if(!r||!r.ok){ err.innerHTML=`<div class="note bad">${ic('alert',20)}الكود ده مش صحيح أو انتهى. اتأكد منه أو اطلب كود جديد.</div>`; return; }
+      cloud.forceAct=false; await registerDevice(); render(); toast('التطبيق اتفعّل');
+    }catch(e){ err.innerHTML=`<div class="note bad">مفيش اتصال بالإنترنت، جرّب تاني</div>`; }
   },
-  leaveAdmin:()=>{ try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){ location.hash=''; } render(); },
-  admDevF:d=>{ ui.adm.devF=d.k; render(); },
-  admStatus:async d=>{ if(await saveCtl(d.app,{status:d.k})) toast(APPNAME[d.app]+': '+({active:'شغال',maintenance:'صيانة',locked:'مقفول'}[d.k])); },
-  admMsg:async d=>{ const m=ui.adm.msg[d.app]!=null?ui.adm.msg[d.app]:ctlOf(d.app).message; if(await saveCtl(d.app,{message:String(m||'').trim()})){ ui.adm.msg[d.app]=null; toast('الرسالة اتبعتت'); } },
-  admMsgClear:async d=>{ if(await saveCtl(d.app,{message:''})){ ui.adm.msg[d.app]=null; toast('الرسالة اتمسحت'); } },
-  admUpdate:async d=>{
-    const u=ui.adm.upd[d.app], c=ctlOf(d.app); const v=String(u.ver||'').trim()||nextVer(c.latest);
-    if(!/^\d+\.\d+\.\d+$/.test(v)){ toast('رقم الإصدار لازم يكون زي 1.0.1'); return; }
-    if(cmpVer(v,c.latest)<0){ toast('الإصدار ده أقدم من آخر إصدار ('+c.latest+')'); return; }
-    if(await saveCtl(d.app,{latest:v,notes:String(u.notes||'').trim(),minVersion:u.force?v:c.minVersion})){ ui.adm.upd[d.app]={ver:'',notes:'',force:false}; toast('التحديث '+v+' نزل'+(u.force?' (إجباري)':'')); }
-  },
-  admReq:async (d,el)=>{ if(await saveCtl(d.app,{requireCode:el.checked})) toast(el.checked?'التفعيل بالكود بقى مطلوب':'التفعيل بالكود اتلغى'); },
-  admGen:async()=>{
-    const nc=ui.adm.nc, AL='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', part=()=>Array.from({length:4},()=>AL[Math.floor(Math.random()*AL.length)]).join('');
-    const code='BHR-'+part()+'-'+part(), days=Number(nc.days)||0;
-    try{ await cloud.db.doc('codes/'+code).set({app:nc.app,label:String(nc.label||'').trim(),status:'active',createdAt:new Date().toISOString(),expires:days?addDays(TODAY,days):null}); ui.adm.nc.label=''; toast('الكود '+code+' جاهز'); }
-    catch(e){ toast('مقدرتش أطلع الكود'); }
-  },
-  admCopy:d=>{ try{ navigator.clipboard.writeText(d.code).then(()=>toast('الكود اتنسخ')).catch(()=>toast('انسخه يدوي: '+d.code)); }catch(e){ toast('انسخه يدوي: '+d.code); } },
-  admRevoke:async d=>{ try{ await cloud.db.doc('codes/'+d.code).update({status:'revoked'}); toast('الكود اتلغى'); }catch(e){ toast('مقدرتش ألغي الكود'); } },
-  admRestore:async d=>{ try{ await cloud.db.doc('codes/'+d.code).update({status:'active'}); toast('الكود رجع يشتغل'); }catch(e){ toast('مقدرتش أرجّع الكود'); } },
-  admBlock:async d=>{ const dv=cloud.devices.find(x=>x.id===d.id); if(!dv) return; try{ await cloud.db.doc('devices/'+d.id).update({blocked:!dv.blocked}); toast(dv.blocked?'الجهاز رجع يشتغل':'الجهاز اتوقف'); }catch(e){ toast('مقدرتش أغيّر حالة الجهاز'); } },
+  actNow:()=>{ cloud.forceAct=true; render(); },
+  actLater:()=>{ cloud.forceAct=false; render(); },
   askReset:()=>{ ui.confirmReset=true; render(); },
   cancelReset:()=>{ ui.confirmReset=false; render(); },
   doReset:()=>{ S=blank(); save(); ui={view:'home',stack:[],mq:'',mf:'all',ff:'all'}; render(); toast('اتمسحت كل البيانات'); }
@@ -993,7 +880,6 @@ document.addEventListener('change',e=>{ const el=e.target; if(el.dataset&&el.dat
     if(el.hasAttribute('data-rerender')) render(); }
 });
 
-window.addEventListener('hashchange',()=>{ render(); window.scrollTo(0,0); });
 render();
 cloudInit();
 })();
